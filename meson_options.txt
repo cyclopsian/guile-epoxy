@@ -1,0 +1,2 @@
+option('glx', type: 'feature', value: 'auto', description: 'Enable GLX support')
+option('egl', type: 'feature', value: 'auto', description: 'Enable EGL support')
