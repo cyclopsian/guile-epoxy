@@ -2,8 +2,10 @@
 ;;;; SPDX-FileCopyrightText: 2020 Jason Francis <jason@cycles.network>
 ;;;; SPDX-License-Identifier: Apache-2.0
 
+(eval-when (expand load eval)
+  (load-extension (@ (epoxy config) *epoxy-lib-path*) "scm_init_epoxy"))
+
 (define-module (epoxy egl)
-  #:use-module (epoxy config)
   #:use-module (epoxy egl commands)
   #:use-module (epoxy egl enums)
   #:use-module (oop goops)

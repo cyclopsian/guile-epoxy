@@ -4,5 +4,4 @@
 
 (define-module (epoxy config))
 
-(eval-when (expand load eval)
-  (load-extension "@extensionlib@" "scm_init_epoxy"))
+(define-public *epoxy-lib-path* "@extensionlib@")
