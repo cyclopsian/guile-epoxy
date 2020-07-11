@@ -24,7 +24,8 @@
 (define-class <gl-param> ()
               (name   #:init-keyword #:name)
               (ptype  #:init-keyword #:ptype)
-              (fptype #:init-keyword #:fptype))
+              (fptype #:init-keyword #:fptype)
+              (index  #:init-keyword #:index))
 
 (define-syntax sxml-match-children-internal
   (syntax-rules ()
@@ -60,9 +61,10 @@
 
 (define (make-value value)
   (string->number
-    (if (string-prefix? "0x" value)
-        (string-append "#" (substring value 1))
-        value)))
+    (cond
+      ((string-prefix? "0x" value)
+        (string-append "#" (substring value 1)))
+      (else value))))
 
 (define (make-enum enum)
   (sxml-match
@@ -89,10 +91,10 @@
     ((list ,ptype (name ,name) . ,_)
      (list name (make-type ptype) (make-type ptype)))))
 
-(define (make-param elems)
+(define (make-param elems index)
   (match-let
     (((name ptype fptype) (make-ptype-and-name elems)))
-    (make <gl-param> #:name name #:ptype ptype #:fptype fptype)))
+    (make <gl-param> #:name name #:ptype ptype #:fptype fptype #:index index)))
 
 (define (make-params elems)
   (reverse
@@ -102,7 +104,7 @@
            ((param (sxml-match
                      elem
                      ((param . ,rest)
-                      (make-param rest))
+                      (make-param rest (length acc)))
                      (,_ #f))))
            (if param (cons param acc) acc)))
       elems '())))
@@ -122,10 +124,14 @@
 
 (define (format-args params)
   (if (null? params)
-      '("void")
-      (map
-        (cut string-append "SCM " <>)
-        (map (cut slot-ref <> 'name) params))))
+    '("void")
+    (let ((len (length params)))
+      (append
+        (map
+          (cut string-append "SCM " <>)
+          (map (cut slot-ref <> 'name)
+               (if (> len 10) (take params 9) params)))
+        (if (> len 10) '("SCM rest") '())))))
 
 (define* (unique lst #:optional (pred identity))
   (let ((ht (make-hash-table)))
@@ -175,6 +181,9 @@
       ("GLuint64EXT"   . "uint64")
       ("GLvdpauSurfaceNV" . "ssize_t")
       ("GLhalfNV"      . "ushort")
+      ("EGLNativeDisplayType" . "size_t")
+      ("EGLNativePixmapType"  . "size_t")
+      ("EGLNativeWindowType"  . "size_t")
       ("EGLint"        . "int32")
       ("EGLBoolean"    . "bool")
       ("EGLAttribKHR"  . "ssize_t")
@@ -215,21 +224,32 @@
 (define (format-call-arg param)
   (string-append "_" (slot-ref param 'name)))
 
-(define (format-param-unwrap param)
+(define (format-param-unwrap param param-count)
   (let ((name   (slot-ref param 'name))
+        (index  (slot-ref param 'index))
         (fptype (slot-ref param 'fptype)))
     (format
-      #f "  ~24a _~24a = (~@*~a) scm_to_~2@*~a(~1@*~a);"
-      fptype name (hash-ref type-mappings fptype "pointer"))))
+      #f "  ~24a _~24a = (~@*~a) scm_to_~2@*~a(~a);"
+      fptype name (hash-ref type-mappings fptype "pointer")
+      (if (and (> param-count 10) (>= index 9))
+        (format #f "scm_list_ref(rest, scm_from_ulong(~a))" (- index 9))
+        name))))
 
 (define (format-body cmd)
   (let* ((name   (slot-ref cmd 'name))
-         (fptype (slot-ref cmd 'fptype ))
+         (fptype (slot-ref cmd 'fptype))
          (params (slot-ref cmd 'params))
+         (param-count (length params))
          (has-ret (not (equal? fptype "void"))))
     (string-join
       (list
-        (string-join (map format-param-unwrap params) "\n")
+        (if (> param-count 10)
+          (format #f
+"  if (scm_to_ulong(scm_length(rest)) != ~a)
+    scm_wrong_num_args(scm_from_utf8_string(\"~a\"));\n"
+             (- param-count 9) name)
+          "")
+        (string-join (map (cut format-param-unwrap <> param-count) params) "\n")
         (format #f "  ~a~a(~a);"
                 (if has-ret (string-append fptype " __ret = ") "")
                 name
@@ -280,30 +300,31 @@ static SCM scm_~a(~a) {
   (string-join (format-args (slot-ref cmd 'params)) ", ")
   (format-body cmd)))
       commands)
-    (format #t "\n\nvoid init_~a(void *data) {\n(void) data;" namespace)
+    (format #t "\n\nvoid init_~a_enums(void *data) {\n  (void) data;"
+            namespace)
     (for-each
       (match-lambda
         ((name . value)
          (format #t "
   static const char *s_~a = \"~@*~a\";
-  scm_c_define(s_~@*~a, scm_from_~a(~a));
+  scm_c_define(s_~@*~a, scm_from_~a(~@*~a));
   scm_c_export(s_~@*~a, NULL);"
                  name
                  (cond
                    ((> value #xffffffff) "uint64")
                    ((< value 0) "int")
-                   (else "uint"))
-                 (cond
-                   ((> value #xffffffff) (format #f "~aULL" value))
-                   (else value)))))
+                   (else "uint")))))
       enums)
     (newline)
+    (format #t "}\n\nvoid init_~a_commands(void *data) {\n  (void) data;"
+            namespace)
     (define (print-cmd-def name params)
-      (format #t "
+      (let ((len (length params)))
+        (apply format #t "
   static const char *s_~a = \"~@*~a\";
-  scm_c_define_gsubr(s_~@*~a, ~a, 0, 0, scm_~@*~a);
+  scm_c_define_gsubr(s_~@*~a, ~a, 0, ~a, scm_~@*~a);
   scm_c_export(s_~@*~a, NULL);"
-        name (length params)))
+          name (if (> len 10) '(9 1) `(,len 0)))))
 
     (for-each
       (λ (cmd)

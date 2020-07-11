@@ -7,7 +7,7 @@ Files: meson_options.txt
 Copyright: 2020 Jason Francis <jason@cycles.network>
 License: Apache-2.0
 
-Files: registry/gl.xml registry/glx.xml
+Files: registry/gl.xml
 Copyright: 2013-2018 The Khronos Group Inc.
 License: Apache-2.0
 

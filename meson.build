@@ -26,6 +26,17 @@ guile_ver = guile.name().split('-').get(1)
 root = '/' / get_option('prefix')
 guile_moddir = root / get_option('datadir') / 'guile/site' / guile_ver
 extdir = get_option('libdir') / 'guile' / guile_ver / 'extensions'
+guile_godir = root / get_option('libdir') / 'guile' / guile_ver / 'site-ccache'
+
+guild_exe = find_program(guile.get_variable(pkgconfig: 'guild'), native: true)
+guild_warnings = [
+  '-Warity-mismatch',
+  '-Wbad-case-datum',
+  '-Wduplicate-case-datum',
+  '-Wformat',
+  '-Wmacro-use-before-definition',
+  '-Wunbound-variable',
+]
 
 guile_epoxy_srcs = [
   'guile-epoxy.c'
@@ -33,13 +44,6 @@ guile_epoxy_srcs = [
 
 specs = ['gl']
 guile_epoxy_args = []
-
-glx_option = get_option('glx')
-if glx_option.enabled() or (glx_option.auto() \
-  and not ['windows', 'darwin', 'android', 'haiku'].contains(host_system))
-  specs += 'glx'
-  guile_epoxy_args += '-DHAVE_GLX'
-endif
 
 egl_option = get_option('egl')
 if egl_option.enabled() or (egl_option.auto() \
@@ -68,3 +72,8 @@ guile_epoxy = library(
   install: true,
   install_dir: extdir
 )
+
+scmdir = meson.current_source_dir()
+scmbuilddir = meson.current_build_dir()
+
+subdir('epoxy')
