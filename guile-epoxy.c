@@ -2,21 +2,43 @@
  * SPDX-License-Identifier: Apache-2.0 */
 
 #include <libguile.h>
+#include <epoxy/common.h>
 
 SCM_API void scm_init_epoxy(void);
 
-void init_gl_commands(void *data);
-void init_gl_enums(void *data);
+#define FUNC_NAME s_scm_epoxy_extension_in_string
+SCM_DEFINE_PUBLIC(scm_epoxy_extension_in_string,
+    "epoxy-extension-in-string", 2, 0, 0,
+    (SCM extension_list, SCM ext), "") {
+  SCM_VALIDATE_STRING(SCM_ARG1, extension_list);
+  SCM_VALIDATE_STRING(SCM_ARG2, ext);
+  scm_dynwind_begin(0);
+  char *c_extension_list = scm_to_utf8_string(extension_list);
+  scm_dynwind_free(c_extension_list);
+  char *c_ext= scm_to_utf8_string(ext);
+  scm_dynwind_free(c_ext);
+  bool result = epoxy_extension_in_string(c_extension_list, c_ext);
+  scm_dynwind_end();
+  return scm_from_bool(result);
+}
+#undef FUNC_NAME
+
+void scm_init_epoxy_gl(void);
 #ifdef HAVE_EGL
-void init_egl_commands(void *data);
-void init_egl_enums(void *data);
+void scm_init_epoxy_egl(void);
 #endif
 
-void scm_init_epoxy(void) {
-  scm_c_define_module("epoxy gl commands",  init_gl_commands, NULL);
-  scm_c_define_module("epoxy gl enums",  init_gl_enums, NULL);
-#ifdef HAVE_EGL
-  scm_c_define_module("epoxy egl commands", init_egl_commands, NULL);
-  scm_c_define_module("epoxy egl enums", init_egl_enums, NULL);
+void init_epoxy_util(void *data) {
+  (void) data;
+#ifndef SCM_MAGIC_SNARFER
+#include "guile-epoxy.x"
 #endif
+}
+
+void scm_init_epoxy(void) {
+  scm_init_epoxy_gl();
+#ifdef HAVE_EGL
+  scm_init_epoxy_egl();
+#endif
+  scm_c_define_module("epoxy util", init_epoxy_util, NULL);
 }

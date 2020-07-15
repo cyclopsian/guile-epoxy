@@ -3,11 +3,13 @@
 ;;;; SPDX-License-Identifier: Apache-2.0
 
 (eval-when (expand load eval)
-  (load-extension (@ (epoxy config) *epoxy-lib-path*) "scm_init_epoxy"))
+  (load-extension "libguile-epoxy" "scm_init_epoxy"))
 
 (define-module (epoxy gles2)
   #:use-module (epoxy gl commands)
   #:use-module (epoxy gl enums)
+  #:use-module (epoxy gl util)
+  #:use-module (epoxy util)
   #:use-module (ice-9 binary-ports)
   #:use-module (oop goops)
   #:use-module (rnrs bytevectors)
@@ -15,8 +17,57 @@
   #:use-module (srfi srfi-4 gnu)
   #:use-module (system foreign)
   #:export (<gl-buffer> <gl-framebuffer> <gl-program>
-            <gl-renderbuffer> <gl-shader> <gl-texture>)
-  #:re-export (initialize bind delete
+            <gl-renderbuffer> <gl-shader> <gl-texture>
+            object-id
+
+            gl-errors gl-get-error gl-error gl-active-texture gl-attach-shader
+            gl-bind-attrib-location gl-blend-color gl-blend-equation
+            gl-blend-equation-separate gl-blend-func gl-blend-func-separate
+            gl-buffer-data gl-buffer-sub-data gl-check-framebuffer-status
+            gl-clear gl-clear-color gl-clear-depth gl-clear-stencil
+            gl-color-mask gl-compile-shader gl-compressed-tex-image-2d
+            gl-compressed-tex-sub-image-2d gl-copy-tex-image-2d
+            gl-copy-tex-sub-image-2d gl-cull-face gl-depth-func gl-depth-mask
+            gl-depth-range gl-detach-shader gl-disable
+            gl-disable-vertex-attrib-array gl-draw-arrayfiless gl-draw-elements
+            gl-enable gl-enable-vertex-attrib-array gl-finish gl-flush
+            gl-framebuffer-renderbuffer gl-framebuffer-texture-2d gl-front-face
+            gl-generate-mipmap gl-get-booleans gl-get-boolean gl-get-floats
+            gl-get-float gl-get-integers gl-get-integer gl-get-active-attrib
+            gl-get-active-uniform gl-get-attached-shaders
+            gl-get-attrib-location gl-get-buffer-parameter-iv
+            gl-get-buffer-parameter-i
+            gl-get-framebuffer-attachment-parameter-iv
+            gl-get-framebuffer-attachment-parameter-i gl-get-program-info-log
+            gl-get-program-iv gl-get-program-i gl-get-renderbuffer-parameter-iv
+            gl-get-renderbuffer-parameter-i gl-get-shader-info-log
+            gl-get-shader-precision-format gl-get-shader-source
+            gl-get-shader-iv gl-get-shader-i gl-get-string
+            gl-get-tex-parameter-fv gl-get-tex-parameter-f
+            gl-get-tex-parameter-iv gl-get-tex-parameter-i gl-get-uniform-fv
+            gl-get-uniform-f gl-get-uniform-iv gl-get-uniform-i
+            gl-get-uniform-location gl-get-vertex-attrib-fv
+            gl-get-vertex-attrib-f gl-get-vertex-attrib-iv
+            gl-get-vertex-attrib-i gl-get-vertex-attrib-pointer gl-hint
+            gl-buffer?  gl-enabled?  gl-framebuffer?  gl-program?
+            gl-renderbuffer?  gl-shader?  gl-texture?  gl-line-width
+            gl-link-program gl-polygon-offset gl-read-pixels
+            gl-release-shader-compiler gl-renderbuffer-storage
+            gl-sample-coverage gl-scissor gl-shader-binary gl-shader-source
+            gl-stencil-func gl-stencil-func-separate gl-stencil-mask
+            gl-stencil-mask-separate gl-stencil-op gl-stencil-op-separate
+            gl-tex-image-2d gl-tex-parameter gl-tex-sub-image-2d gl-uniform
+            gl-uniform-1iv gl-uniform-1fv gl-uniform-1v gl-uniform-2iv
+            gl-uniform-2fv gl-uniform-2v gl-uniform-3iv gl-uniform-3fv
+            gl-uniform-3v gl-uniform-4iv gl-uniform-4fv gl-uniform-4v
+            gl-uniform-matrix-2v gl-uniform-matrix-3v gl-uniform-matrix-4v
+            gl-use-program gl-validate-program gl-vertex-attrib
+            gl-vertex-attrib-pointer gl-viewport
+            )
+  #:re-export (epoxy-has-gl-extension epoxy-is-desktop-gl
+               epoxy-gl-version epoxy-glsl-version
+
+               initialize
 
                GL_DEPTH_BUFFER_BIT GL_STENCIL_BUFFER_BIT GL_COLOR_BUFFER_BIT
                GL_FALSE GL_TRUE GL_POINTS GL_LINES GL_LINE_LOOP GL_LINE_STRIP
@@ -121,10 +172,9 @@
                GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS GL_FRAMEBUFFER_UNSUPPORTED
                GL_FRAMEBUFFER_BINDING GL_RENDERBUFFER_BINDING
                GL_MAX_RENDERBUFFER_SIZE GL_INVALID_FRAMEBUFFER_OPERATION
-               ))
-
-(define (object-id object)
-  (slot-ref object 'id))
+               )
+  #:replace   (bind delete)
+  #:re-export-and-replace (epoxy-extension-in-string))
 
 (define gl-errors
   ((λ ()
@@ -153,13 +203,14 @@
   (syntax-rules ()
     ((define-gl-object name gen bin del)
      (begin
-       (define-class name () id)
-       (define-method (initialize (obj name))
-         (let ((id-vec (make-u32vector 1 0)))
-           (gen 1 (bytevector->pointer id-vec))
-           (slot-set! obj 'id (u32vector-ref id-vec 0))))
-       (define-method (initialize (obj name) id)
-         (slot-set! obj 'id id))
+       (define-class name () (id #:getter object-id))
+       (define-method (initialize (obj name) args)
+         (apply (case-lambda
+                  (() (let ((id-vec (make-u32vector 1 0)))
+                        (gen 1 (bytevector->pointer id-vec))
+                        (slot-set! obj 'id (u32vector-ref id-vec 0))))
+                  ((id) (slot-set! obj 'id id)))
+                args))
        (define-method (bind target (obj name))
          (bin target (object-id obj)))
        (define-method (delete (obj name))
@@ -178,8 +229,8 @@
   (glDeleteProgram (object-id program)))
 
 (define-class <gl-shader> () id)
-(define-method (initialize (shader <gl-shader>) type)
-  (slot-set! shader 'id (glCreateShader type)))
+(define-method (initialize (shader <gl-shader>) args)
+  (apply (λ (type) (slot-set! shader 'id (glCreateShader type))) args))
 (define-method (delete (shader <gl-shader>))
   (glDeleteShader (object-id shader)))
 

@@ -5,9 +5,10 @@ egl.c
 gl.c
 glx.c
 wgl.c
+*.x
 *.go
-config.scm
-config.install.scm
+*.go.*
+/env
 
 # http://www.gnu.org/software/automake
 

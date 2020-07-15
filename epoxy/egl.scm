@@ -3,11 +3,13 @@
 ;;;; SPDX-License-Identifier: Apache-2.0
 
 (eval-when (expand load eval)
-  (load-extension (@ (epoxy config) *epoxy-lib-path*) "scm_init_epoxy"))
+  (load-extension "libguile-epoxy" "scm_init_epoxy"))
 
 (define-module (epoxy egl)
   #:use-module (epoxy egl commands)
   #:use-module (epoxy egl enums)
+  #:use-module (epoxy egl util)
+  #:use-module (epoxy util)
   #:use-module (oop goops)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-4)
@@ -16,6 +18,8 @@
   #:use-module (system foreign-object)
   #:export (<egl-config> <egl-context> <egl-display>
             <egl-image>  <egl-surface> <egl-sync>
+
+            epoxy-has-egl-extension epoxy-egl-version
 
             egl-error egl-bind-api egl-bind-tex-image egl-choose-config
             egl-client-wait-sync egl-copy-buffers egl-create-context
@@ -29,7 +33,8 @@
             egl-make-current egl-query-api egl-query-context egl-query-string
             egl-query-surface egl-release-tex-image egl-release-thread
             egl-surface-attrib egl-swap-buffers egl-swap-interval egl-terminate
-            egl-wait-client egl-wait-gl egl-wait-native egl-wait-sync))
+            egl-wait-client egl-wait-gl egl-wait-native egl-wait-sync)
+  #:re-export-and-replace (epoxy-has-egl epoxy-extension-in-string))
 
 (module-use! (module-public-interface (current-module))
              (resolve-interface '(epoxy egl enums)))
@@ -76,6 +81,14 @@
 
 (define* (egl-error #:optional subr)
   (scm-error 'egl-error subr "~a" (list (egl-get-error)) '()))
+
+(define-generic epoxy-has-egl-extension)
+(define-method (epoxy-has-egl-extension (disp <egl-display>) extension)
+  (epoxy-has-egl-extension (foreign->pointer disp) extension))
+
+(define-generic epoxy-egl-version)
+(define-method (epoxy-egl-version (disp <egl-display>))
+  (epoxy-egl-version (foreign->pointer disp)))
 
 (define (egl-bind-api api)
   (unless (eglBindAPI api)

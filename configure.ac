@@ -10,6 +10,8 @@ GUILE_PKG([3.0])
 GUILE_PROGS
 GUILE_SITE_DIR
 GUILE_FLAGS
+AC_PATH_PROG(GUILE_SNARF,[guile-snarf-$GUILE_EFFECTIVE_VERSION])
+AC_SUBST(GUILE_SNARF)
 
 if test "$cross_compiling" != no; then
   GUILE_TARGET="--target=$host_alias"
@@ -27,4 +29,5 @@ AC_PROG_CC
 AM_PROG_AR
 LT_INIT([disable-static])
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([env], [chmod +x env])
 AC_OUTPUT
