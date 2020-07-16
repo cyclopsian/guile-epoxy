@@ -23,7 +23,8 @@ guileextensiondir = $(GUILE_EXTENSION)
 moddir = $(GUILE_SITE)
 objdir = $(GUILE_SITE_CCACHE)
 
-libguile_epoxy_la_SOURCES = $(SOURCES) $(GENERATED)
+nodist_libguile_epoxy_la_SOURCES = $(GENERATED)
+libguile_epoxy_la_SOURCES = $(SOURCES)
 libguile_epoxy_la_CFLAGS = $(EPOXY_CFLAGS) $(AM_CFLAGS) $(GUILE_CFLAGS)
 libguile_epoxy_la_LIBADD = $(EPOXY_LIBS) $(GUILE_LIBS)
 libguile_epoxy_la_LDFLAGS = -export-dynamic
@@ -58,4 +59,4 @@ nobase_nodist_obj_DATA = $(GOBJECTS)
 
 CLEANFILES = $(BUILT_SOURCES) $(GOBJECTS)
 
-EXTRA_DIST = $(SCMS) $(GOBJECTS)
+EXTRA_DIST = $(SCMS) generate.scm LICENSES .reuse registry
