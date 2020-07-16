@@ -3,7 +3,7 @@ Upstream-Name: guile-epoxy
 Upstream-Contact: Jason Francis <jason@cycles.network>
 Source: https://guile-epoxy.cycles.network/
 
-Files: config.rpath
+Files: build-aux/config.rpath
 Copyright: 2020 Jason Francis <jason@cycles.network>
 License: Apache-2.0
 
