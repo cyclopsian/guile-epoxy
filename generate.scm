@@ -220,6 +220,8 @@
       ("GLXPbufferSGIX" . "ulong")
       )))
 
+(define enum-booleans
+  '("GL_TRUE" "GL_FALSE" "GL_TRUE_EXT" "GL_FALSE_EXT" "EGL_TRUE" "EGL_FALSE"))
 
 (define (format-call-arg param)
   (string-append "_" (slot-ref param 'name)))
@@ -311,6 +313,7 @@ static SCM scm_~a(~a) {
   scm_c_export(s_~@*~a, NULL);"
                  name
                  (cond
+                   ((member name enum-booleans) "bool")
                    ((> value #xffffffff) "uint64")
                    ((< value 0) "int")
                    (else "uint")))))

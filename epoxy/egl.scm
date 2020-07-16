@@ -19,8 +19,6 @@
   #:export (<egl-config> <egl-context> <egl-display>
             <egl-image>  <egl-surface> <egl-sync>
 
-            epoxy-has-egl-extension epoxy-egl-version
-
             egl-error egl-bind-api egl-bind-tex-image egl-choose-config
             egl-client-wait-sync egl-copy-buffers egl-create-context
             egl-create-image egl-create-pbuffer-from-client-buffer
@@ -34,7 +32,8 @@
             egl-query-surface egl-release-tex-image egl-release-thread
             egl-surface-attrib egl-swap-buffers egl-swap-interval egl-terminate
             egl-wait-client egl-wait-gl egl-wait-native egl-wait-sync)
-  #:re-export-and-replace (epoxy-has-egl epoxy-extension-in-string))
+  #:replace (epoxy-has-egl-extension epoxy-egl-version)
+  #:re-export (epoxy-has-egl epoxy-extension-in-string))
 
 (module-use! (module-public-interface (current-module))
              (resolve-interface '(epoxy egl enums)))
@@ -57,6 +56,13 @@
 
 (define (foreign->nullable-pointer f)
   (if f (foreign->pointer f) %null-pointer))
+
+(define (make-attrib-list-ptr attribs)
+  (bytevector->pointer
+    (any->s32vector
+      (append
+        (map (λ (a) (case a ((#t) 1) ((#f) 0) (else a))) attribs)
+        (list EGL_NONE)))))
 
 (define egl-errors
   ((λ ()
@@ -82,10 +88,14 @@
 (define* (egl-error #:optional subr)
   (scm-error 'egl-error subr "~a" (list (egl-get-error)) '()))
 
+(define epoxy-has-egl-extension (@ (epoxy egl util) epoxy-has-egl-extension))
 (define-generic epoxy-has-egl-extension)
 (define-method (epoxy-has-egl-extension (disp <egl-display>) extension)
   (epoxy-has-egl-extension (foreign->pointer disp) extension))
+(define-method (epoxy-has-egl-extension extension)
+  (epoxy-has-egl-extension %null-pointer extension))
 
+(define epoxy-egl-version (@ (epoxy egl util) epoxy-egl-version))
 (define-generic epoxy-egl-version)
 (define-method (epoxy-egl-version (disp <egl-display>))
   (epoxy-egl-version (foreign->pointer disp)))
@@ -102,8 +112,7 @@
 
 (define-method (egl-choose-config (disp <egl-display>) attrib-list num-configs)
   (let ((disp-ptr   (foreign->pointer disp))
-        (attrib-ptr (bytevector->pointer
-                      (any->s32vector (append attrib-list (list EGL_NONE)))))
+        (attrib-ptr (make-attrib-list-ptr attrib-list))
         (num-config-vec (make-s32vector 1)))
 
     (unless num-configs
@@ -152,8 +161,7 @@
     (disp <egl-display>) (config <egl-config>) share-context attrib-list)
   (let* ((share-ptr (check-optional-foreign
                       share-context <egl-context> "egl-create-context"))
-         (attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+         (attrib-ptr (make-attrib-list-ptr attrib-list))
          (ctx-ptr (pointer-address
                      (eglCreateContext
                        (foreign->pointer disp) (foreign->pointer config)
@@ -170,8 +178,7 @@
   (egl-create-image (disp <egl-display>) ctx target buffer attrib-list)
   (let* ((ctx-ptr
            (check-optional-foreign ctx <egl-context> "egl-create-image"))
-         (attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+         (attrib-ptr (make-attrib-list-ptr attrib-list))
          (image-ptr (pointer-address
                       (eglCreateImage
                         (foreign->pointer disp)
@@ -189,8 +196,7 @@
 (define-method
   (egl-create-pbuffer-from-client-buffer (disp <egl-display>) buftype buffer
                                          (config <egl-config>) attrib-list)
-  (let* ((attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
          (surface-ptr (pointer-address
                         (eglCreatePbufferFromClientBuffer
                           (foreign->pointer disp) buftype
@@ -203,8 +209,7 @@
 (define-method
   (egl-create-pbuffer-surface (disp <egl-display>) (config <egl-config>)
                                    attrib-list)
-  (let* ((attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
          (surface-ptr (pointer-address
                         (eglCreatePbufferSurface
                           (foreign->pointer disp)
@@ -216,8 +221,7 @@
 (define-method
   (egl-create-pixmap-surface (disp <egl-display>) (config <egl-config>) pixmap
                                    attrib-list)
-  (let* ((attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
          (surface-ptr (pointer-address
                         (eglCreatePlatformPixmapSurface
                           (foreign->pointer disp)
@@ -233,8 +237,7 @@
   (egl-create-pixmap-surface disp config pixmap '()))
 
 (define-method (egl-create-sync (disp <egl-display>) type attrib-list)
-  (let* ((attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
          (sync-ptr (pointer-address
                      (eglCreateSync
                        (foreign->pointer disp) type attrib-ptr))))
@@ -245,8 +248,7 @@
 (define-method
   (egl-create-window-surface (disp <egl-display>) (config <egl-config>) window
                                    attrib-list)
-  (let* ((attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
          (surface-ptr (pointer-address
                         (eglCreatePlatformWindowSurface
                           (foreign->pointer disp)
@@ -314,31 +316,36 @@
            (bytevector->uint-list configs (native-endianness) (sizeof '*))))))
 
 (define (egl-get-current-context)
-  (let ((ctx-ptr (eglGetCurrentContext)))
+  (let ((ctx-ptr (pointer-address (eglGetCurrentContext))))
     (if (zero? ctx-ptr) #f (make-egl-context ctx-ptr))))
 
 (define (egl-get-current-display)
-  (let ((disp-ptr (eglGetCurrentDisplay)))
+  (let ((disp-ptr (pointer-address (eglGetCurrentDisplay))))
     (if (zero? disp-ptr) #f (make-egl-display disp-ptr))))
 
 (define (egl-get-current-surface readdraw)
-  (let ((surface-ptr (eglGetCurrentSurface readdraw)))
+  (let ((surface-ptr (pointer-address (eglGetCurrentSurface readdraw))))
     (if (zero? surface-ptr) #f (make-egl-surface surface-ptr))))
 
 (define-method (egl-get-platform-display platform disp attrib-list)
-  (let* ((attrib-ptr (bytevector->pointer
-                       (any->s32vector (append attrib-list (list EGL_NONE)))))
+  (let* ((get (if (epoxy-has-egl-extension "EGL_EXT_platform_base")
+                  eglGetPlatformDisplayEXT eglGetPlatformDisplay))
+         (attrib-ptr (make-attrib-list-ptr attrib-list))
          (disp-ptr (pointer-address
-                     (eglGetPlatformDisplay
-                       platform
-                       (if (pointer? disp) disp (make-pointer disp))
-                       attrib-ptr))))
+                     (get platform
+                          (if disp
+                              (if (pointer? disp) disp (make-pointer disp))
+                              %null-pointer)
+                          attrib-ptr))))
     (if (zero? disp-ptr)
       (egl-error "egl-get-platform-display")
       (make-egl-display disp-ptr))))
 
 (define-method (egl-get-platform-display platform disp)
   (egl-get-platform-display platform disp '()))
+
+(define-method (egl-get-platform-display platform)
+  (egl-get-platform-display platform #f))
 
 (define-method
   (egl-get-sync-attrib (disp <egl-display>) (sync <egl-sync>) attribute)
@@ -383,9 +390,15 @@
         (s32vector-ref value-vec 0)
         (egl-error "egl-query-context"))))
 
+(define-method (egl-query-string name)
+  (let ((str-ptr (eglQueryString %null-pointer name)))
+    (if (null-pointer? str-ptr)
+        (egl-error "egl-query-string")
+        (pointer->string str-ptr))))
+
 (define-method (egl-query-string (disp <egl-display>) name)
   (let ((str-ptr (eglQueryString (foreign->pointer disp) name)))
-    (if (zero? str-ptr)
+    (if (null-pointer? str-ptr)
         (egl-error "egl-query-string")
         (pointer->string str-ptr))))
 

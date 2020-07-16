@@ -16,9 +16,16 @@
   #:use-module (srfi srfi-4)
   #:use-module (srfi srfi-4 gnu)
   #:use-module (system foreign)
-  #:export (<gl-buffer> <gl-framebuffer> <gl-program>
+  #:export (<gl-object> gl-object-id
+            <gl-buffer> <gl-framebuffer> <gl-program>
             <gl-renderbuffer> <gl-shader> <gl-texture>
-            object-id
+
+            gl-create-buffer gl-bind-buffer gl-delete-buffer
+            gl-create-framebuffer gl-bind-framebuffer gl-delete-framebuffer
+            gl-create-renderbuffer gl-bind-renderbuffer gl-delete-renderbuffer
+            gl-create-texture gl-bind-texture gl-delete-texture
+            gl-create-program gl-delete-program
+            gl-create-shader gl-delete-shader
 
             gl-errors gl-get-error gl-error gl-active-texture gl-attach-shader
             gl-bind-attrib-location gl-blend-color gl-blend-equation
@@ -29,7 +36,7 @@
             gl-compressed-tex-sub-image-2d gl-copy-tex-image-2d
             gl-copy-tex-sub-image-2d gl-cull-face gl-depth-func gl-depth-mask
             gl-depth-range gl-detach-shader gl-disable
-            gl-disable-vertex-attrib-array gl-draw-arrayfiless gl-draw-elements
+            gl-disable-vertex-attrib-array gl-draw-arrays gl-draw-elements
             gl-enable gl-enable-vertex-attrib-array gl-finish gl-flush
             gl-framebuffer-renderbuffer gl-framebuffer-texture-2d gl-front-face
             gl-generate-mipmap gl-get-booleans gl-get-boolean gl-get-floats
@@ -51,7 +58,7 @@
             gl-get-vertex-attrib-i gl-get-vertex-attrib-pointer gl-hint
             gl-buffer?  gl-enabled?  gl-framebuffer?  gl-program?
             gl-renderbuffer?  gl-shader?  gl-texture?  gl-line-width
-            gl-link-program gl-polygon-offset gl-read-pixels
+            gl-link-program gl-pixel-store gl-polygon-offset gl-read-pixels
             gl-release-shader-compiler gl-renderbuffer-storage
             gl-sample-coverage gl-scissor gl-shader-binary gl-shader-source
             gl-stencil-func gl-stencil-func-separate gl-stencil-mask
@@ -67,7 +74,7 @@
   #:re-export (epoxy-has-gl-extension epoxy-is-desktop-gl
                epoxy-gl-version epoxy-glsl-version
 
-               initialize
+               initialize delete
 
                GL_DEPTH_BUFFER_BIT GL_STENCIL_BUFFER_BIT GL_COLOR_BUFFER_BIT
                GL_FALSE GL_TRUE GL_POINTS GL_LINES GL_LINE_LOOP GL_LINE_STRIP
@@ -173,8 +180,7 @@
                GL_FRAMEBUFFER_BINDING GL_RENDERBUFFER_BINDING
                GL_MAX_RENDERBUFFER_SIZE GL_INVALID_FRAMEBUFFER_OPERATION
                )
-  #:replace   (bind delete)
-  #:re-export-and-replace (epoxy-extension-in-string))
+  #:re-export-and-replace (delete epoxy-extension-in-string))
 
 (define gl-errors
   ((λ ()
@@ -196,51 +202,76 @@
 (define* (gl-error #:optional subr)
   (scm-error 'gl-error subr "~a" (list (gl-get-error)) '()))
 
-(define-generic bind)
-(define-generic delete)
+(define-class <gl-object> () (id #:getter gl-object-id))
+(define-method (initialize (obj <gl-object>) args)
+  (apply (λ (id)
+           (unless (and (integer? id) (positive? id))
+             (scm-error 'wrong-type-arg "initialize"
+                        "Not a positive integer: ~a" (list id) #f))
+           (slot-set! obj 'id id))
+         args))
+
+(set! delete (ensure-generic delete 'delete))
 
 (define-syntax define-gl-object
   (syntax-rules ()
-    ((define-gl-object name gen bin del)
+    ((define-gl-object name gen ngen bind nbind del ndel)
      (begin
-       (define-class name () (id #:getter object-id))
-       (define-method (initialize (obj name) args)
-         (apply (case-lambda
-                  (() (let ((id-vec (make-u32vector 1 0)))
-                        (gen 1 (bytevector->pointer id-vec))
-                        (slot-set! obj 'id (u32vector-ref id-vec 0))))
-                  ((id) (slot-set! obj 'id id)))
-                args))
+       (define-class name (<gl-object>))
+       (define (gen)
+         (let ((id-vec (make-u32vector 1 0)))
+           (ngen 1 (bytevector->pointer id-vec))
+           (make name (u32vector-ref id-vec 0))))
        (define-method (bind target (obj name))
-         (bin target (object-id obj)))
+         (nbind target (gl-object-id obj)))
+       (define-method (bind target)
+         (nbind target 0))
+       (define-method (del (obj name))
+         (let ((id-vec (make-u32vector 1 (gl-object-id obj))))
+           (ndel 1 (bytevector->pointer id-vec))))
        (define-method (delete (obj name))
-         (let ((id-vec (make-u32vector 1 (object-id obj))))
-           (del 1 (bytevector->pointer id-vec))))))))
+         (del obj))))))
 
-(define-gl-object <gl-buffer> glGenBuffers glBindBuffer glDeleteBuffers)
-(define-gl-object <gl-framebuffer> glGenFramebuffers glBindFramebuffer glDeleteFramebuffers)
-(define-gl-object <gl-renderbuffer> glGenRenderbuffers glBindRenderbuffer glDeleteRenderbuffers)
-(define-gl-object <gl-texture> glGenTextures glBindTexture glDeleteTextures)
+(define-gl-object <gl-buffer>
+                  gl-create-buffer glGenBuffers
+                  gl-bind-buffer   glBindBuffer
+                  gl-delete-buffer glDeleteBuffers)
+(define-gl-object <gl-framebuffer>
+                  gl-create-framebuffer glGenFramebuffers
+                  gl-bind-framebuffer   glBindFramebuffer
+                  gl-delete-framebuffer glDeleteFramebuffers)
+(define-gl-object <gl-renderbuffer>
+                  gl-create-renderbuffer glGenRenderbuffers
+                  gl-bind-renderbuffer   glBindRenderbuffer
+                  gl-delete-renderbuffer glDeleteRenderbuffers)
+(define-gl-object <gl-texture>
+                  gl-create-texture glGenTextures
+                  gl-bind-texture   glBindTexture
+                  gl-delete-texture glDeleteTextures)
 
-(define-class <gl-program> () id)
-(define-method (initialize (program <gl-program>))
-  (slot-set! program 'id (glCreateProgram)))
+(define-class <gl-program> (<gl-object>))
+(define (gl-create-program)
+  (make <gl-program> (glCreateProgram)))
+(define-method (gl-delete-program (program <gl-program>))
+  (glDeleteProgram (gl-object-id program)))
 (define-method (delete (program <gl-program>))
-  (glDeleteProgram (object-id program)))
+  (gl-delete-program program))
 
-(define-class <gl-shader> () id)
-(define-method (initialize (shader <gl-shader>) args)
-  (apply (λ (type) (slot-set! shader 'id (glCreateShader type))) args))
+(define-class <gl-shader> (<gl-object>))
+(define (gl-create-shader type)
+  (make <gl-shader> (glCreateShader type)))
+(define-method (gl-delete-shader (shader <gl-shader>))
+  (glDeleteShader (gl-object-id shader)))
 (define-method (delete (shader <gl-shader>))
-  (glDeleteShader (object-id shader)))
+  (gl-delete-shader shader))
 
 (define gl-active-texture  glActiveTexture)
 
 (define-method (gl-attach-shader (program <gl-program>) (shader <gl-shader>))
-  (glAttachShader (object-id program) (object-id shader)))
+  (glAttachShader (gl-object-id program) (gl-object-id shader)))
 
 (define-method (gl-bind-attrib-location (program <gl-program>) index name)
-  (glBindAttribLocation (object-id program) index (string->pointer name)))
+  (glBindAttribLocation (gl-object-id program) index (string->pointer name)))
 
 (define gl-blend-color glBlendColor)
 
@@ -252,28 +283,35 @@
 
 (define gl-blend-func-separate glBlendFuncSeparate)
 
-(define (gl-buffer-data target size data usage)
-  (glBufferData
-    target size (if (bytevector? data) (bytevector->pointer data) data) usage))
+(define-method (gl-buffer-data target size data usage)
+  (glBufferData target size data usage))
 
-(define (gl-buffer-sub-data target offset size data)
-  (glBufferSubData
-    target offset size (if (bytevector? data) (bytevector->pointer data) data)))
+(define-method (gl-buffer-data target (data <bytevector>) usage)
+  (gl-buffer-data
+    target (bytevector-length data) (bytevector->pointer data) usage))
+
+(define-method (gl-buffer-sub-data target offset size data)
+  (glBufferSubData target offset size data))
+
+(define-method (gl-buffer-sub-data target offset (data <bytevector>))
+  (gl-buffer-sub-data
+    target offset (bytevector-length data) (bytevector->pointer data)))
 
 (define gl-check-framebuffer-status glCheckFramebufferStatus)
 
-(define gl-clear glClear)
+(define (gl-clear . fields)
+  (glClear (apply logior fields)))
 
 (define gl-clear-color glClearColor)
 
-(define gl-clear-depth glClearDepth)
+(define gl-clear-depth glClearDepthf)
 
 (define gl-clear-stencil glClearStencil)
 
 (define gl-color-mask glColorMask)
 
 (define-method (gl-compile-shader (shader <gl-shader>))
-  (glCompileShader (object-id shader)))
+  (glCompileShader (gl-object-id shader)))
 
 (define (gl-compressed-tex-image-2d target level internalformat width height border size data)
   (glCompressedTexImage2D target level internalformat width height border size
@@ -296,7 +334,7 @@
 (define gl-depth-range glDepthRangef)
 
 (define-method (gl-detach-shader (program <gl-program>) (shader <gl-shader>))
-  (glDetachShader (object-id program) (object-id shader)))
+  (glDetachShader (gl-object-id program) (gl-object-id shader)))
 
 (define gl-disable glDisable)
 
@@ -323,10 +361,10 @@
 (define gl-flush glFlush)
 
 (define-method (gl-framebuffer-renderbuffer target attachment rdtarget (rd <gl-renderbuffer>))
-  (glFramebufferRenderbuffer target attachment rdtarget (object-id rd)))
+  (glFramebufferRenderbuffer target attachment rdtarget (gl-object-id rd)))
 
 (define-method (gl-framebuffer-texture-2d target attachment textarget (texture <gl-texture>) level)
-  (glFramebufferTexture2D target attachment textarget (object-id texture) level))
+  (glFramebufferTexture2D target attachment textarget (gl-object-id texture) level))
 
 (define gl-front-face glFrontFace)
 
@@ -362,7 +400,7 @@
          (size-vec (make-s32vector 1 0))
          (type-vec (make-u32vector 1 0))
          (len-vec (make-s32vector 1 0)))
-    (glGetActiveAttrib (object-id program) index name-len
+    (glGetActiveAttrib (gl-object-id program) index name-len
                        (bytevector->pointer len-vec)
                        (bytevector->pointer size-vec)
                        (bytevector->pointer type-vec)
@@ -378,7 +416,7 @@
          (size-vec (make-s32vector 1 0))
          (type-vec (make-u32vector 1 0))
          (len-vec (make-s32vector 1 0)))
-    (glGetActiveUniform (object-id program) index name-len
+    (glGetActiveUniform (gl-object-id program) index name-len
                         (bytevector->pointer len-vec)
                         (bytevector->pointer size-vec)
                         (bytevector->pointer type-vec)
@@ -392,7 +430,7 @@
   (let* ((shaders-len (gl-get-program-i program GL_ATTACHED_SHADERS))
          (shaders-vec (make-u8vector shaders-len))
          (len-vec (make-s32vector 1 0)))
-    (glGetAttachedShaders (object-id program) shaders-len
+    (glGetAttachedShaders (gl-object-id program) shaders-len
                           (bytevector->pointer len-vec)
                           (bytevector->pointer shaders-vec))
     (if (<= (s32vector-ref len-vec 0) 0)
@@ -400,7 +438,7 @@
         (map (λ (id) (make <gl-shader> id)) (s32vector->list shaders-vec)))))
 
 (define-method (gl-get-attrib-location (program <gl-program>) name)
-  (glGetAttribLocation (object-id program) (string->pointer name)))
+  (glGetAttribLocation (gl-object-id program) (string->pointer name)))
 
 (define (gl-get-buffer-parameter-iv target value count)
   (let ((vec (make-s32vector count 0)))
@@ -422,7 +460,7 @@
   (let* ((log-len (gl-get-program-i program GL_INFO_LOG_LENGTH))
          (log-vec (make-u8vector log-len))
          (len-vec (make-s32vector 1 0)))
-    (glGetProgramInfoLog (object-id program) log-len
+    (glGetProgramInfoLog (gl-object-id program) log-len
                          (bytevector->pointer len-vec)
                          (bytevector->pointer log-vec))
     (if (<= (s32vector-ref len-vec 0) 0)
@@ -431,7 +469,7 @@
 
 (define-method (gl-get-program-iv (program <gl-program>) pname count)
   (let ((vec (make-s32vector count 0)))
-    (glGetProgramiv (object-id program) pname (bytevector->pointer vec))
+    (glGetProgramiv (gl-object-id program) pname (bytevector->pointer vec))
     vec))
 
 (define-method (gl-get-program-i (program <gl-program>) pname)
@@ -439,7 +477,7 @@
 
 (define-method (gl-get-renderbuffer-parameter-iv (renderbuffer <gl-renderbuffer>) pname count)
   (let ((vec (make-s32vector count 0)))
-    (glGetRenderbufferParameteriv (object-id renderbuffer) pname (bytevector->pointer vec))
+    (glGetRenderbufferParameteriv (gl-object-id renderbuffer) pname (bytevector->pointer vec))
     vec))
 
 (define-method (gl-get-renderbuffer-parameter-i (renderbuffer <gl-renderbuffer>) pname)
@@ -449,7 +487,7 @@
   (let* ((log-len (gl-get-shader-i shader GL_INFO_LOG_LENGTH))
          (log-vec (make-u8vector log-len))
          (len-vec (make-s32vector 1 0)))
-    (glGetShaderInfoLog (object-id shader) log-len
+    (glGetShaderInfoLog (gl-object-id shader) log-len
                         (bytevector->pointer len-vec)
                         (bytevector->pointer log-vec))
     (if (<= (s32vector-ref len-vec 0) 0)
@@ -468,7 +506,7 @@
   (let* ((src-len (gl-get-shader-i shader GL_SHADER_SOURCE_LENGTH))
          (src-vec (make-u8vector src-len))
          (len-vec (make-s32vector 1 0)))
-    (glGetShaderSource (object-id shader) src-len
+    (glGetShaderSource (gl-object-id shader) src-len
                        (bytevector->pointer len-vec)
                        (bytevector->pointer src-vec))
     (if (<= (s32vector-ref len-vec 0) 0)
@@ -477,7 +515,7 @@
 
 (define-method (gl-get-shader-iv (shader <gl-shader>) pname count)
   (let ((vec (make-s32vector count 0)))
-    (glGetShaderiv (object-id shader) pname (bytevector->pointer vec))
+    (glGetShaderiv (gl-object-id shader) pname (bytevector->pointer vec))
     vec))
 
 (define-method (gl-get-shader-i (shader <gl-shader>) pname)
@@ -505,7 +543,7 @@
 
 (define-method (gl-get-uniform-fv (program <gl-program>) location count)
   (let ((vec (make-f32vector count 0)))
-    (glGetUniformfv (object-id program) location (bytevector->pointer vec))
+    (glGetUniformfv (gl-object-id program) location (bytevector->pointer vec))
     vec))
 
 (define-method (gl-get-uniform-f (program <gl-program>) location)
@@ -513,14 +551,14 @@
 
 (define-method (gl-get-uniform-iv (program <gl-program>) location count)
   (let ((vec (make-s32vector count 0)))
-    (glGetUniformiv (object-id program) location (bytevector->pointer vec))
+    (glGetUniformiv (gl-object-id program) location (bytevector->pointer vec))
     vec))
 
 (define-method (gl-get-uniform-i (program <gl-program>) location)
   (s32vector-ref (gl-get-uniform-iv program location 1) 0))
 
 (define-method (gl-get-uniform-location (program <gl-program>) name)
-  (glGetUniformLocation (object-id program) (string->pointer name)))
+  (glGetUniformLocation (gl-object-id program) (string->pointer name)))
 
 (define (gl-get-vertex-attrib-fv index pname count)
   (let ((vec (make-f32vector count 0)))
@@ -546,31 +584,33 @@
 (define gl-hint glHint)
 
 (define (gl-buffer? buffer)
-  (and (is-a? buffer <gl-buffer>) (glIsBuffer (object-id buffer))))
+  (and (is-a? buffer <gl-buffer>) (glIsBuffer (gl-object-id buffer))))
 
 (define gl-enabled? glIsEnabled)
 
 (define (gl-framebuffer? framebuffer)
   (and (is-a? framebuffer <gl-framebuffer>)
-       (glIsFramebuffer (object-id framebuffer))))
+       (glIsFramebuffer (gl-object-id framebuffer))))
 
 (define (gl-program? program)
-  (and (is-a? program <gl-program>) (glIsProgram (object-id program))))
+  (and (is-a? program <gl-program>) (glIsProgram (gl-object-id program))))
 
 (define (gl-renderbuffer? renderbuffer)
   (and (is-a? renderbuffer <gl-renderbuffer>)
-       (glIsRenderbuffer (object-id renderbuffer))))
+       (glIsRenderbuffer (gl-object-id renderbuffer))))
 
 (define (gl-shader? shader)
-  (and (is-a? shader <gl-shader>) (glIsShader (object-id shader))))
+  (and (is-a? shader <gl-shader>) (glIsShader (gl-object-id shader))))
 
 (define (gl-texture? texture)
-  (and (is-a? texture <gl-texture>) (glIsTexture (object-id texture))))
+  (and (is-a? texture <gl-texture>) (glIsTexture (gl-object-id texture))))
 
 (define gl-line-width glLineWidth)
 
 (define-method (gl-link-program (program <gl-program>))
-  (glLinkProgram (object-id program)))
+  (glLinkProgram (gl-object-id program)))
+
+(define gl-pixel-store glPixelStorei)
 
 (define gl-polygon-offset glPolygonOffset)
 
@@ -588,7 +628,7 @@
 (define gl-scissor glScissor)
 
 (define-method (gl-shader-binary (shader <gl-shader>) binaryformat binary length)
-  (let ((shader-vec (make-u32vector 1 (object-id shader))))
+  (let ((shader-vec (make-u32vector 1 (gl-object-id shader))))
     (glShaderBinary
       1 (bytevector->pointer shader-vec) binaryformat
       (if (bytevector? binary) (bytevector->pointer binary) binary)
@@ -605,8 +645,9 @@
   (let ((string-vec (make-bytevector (sizeof '*)))
         (length-vec (make-s32vector 1 (string-length source))))
     (bytevector-uint-set!
-      string-vec 0 (string->pointer source) (native-endianness) (sizeof '*))
-    (glShaderSource (object-id shader) 1
+      string-vec 0 (pointer-address (string->pointer source))
+      (native-endianness) (sizeof '*))
+    (glShaderSource (gl-object-id shader) 1
                     (bytevector->pointer string-vec)
                     (bytevector->pointer length-vec))))
 
@@ -624,7 +665,14 @@
 
 (define (gl-tex-image-2d target level internalformat width height border format type data)
   (glTexImage2D target level internalformat width height border format type
-                (if (bytevector? data) (bytevector->pointer data) data)))
+                (if data
+                    (if (bytevector? data)
+                        (bytevector->pointer data)
+                        data)
+                    %null-pointer)))
+
+(define (gl-tex-image-2d target level internalformat width height border format type)
+  (glTexImage2D target level internalformat width height border format type %null-pointer))
 
 (define-method (gl-tex-parameter target pname (param <real>))
   (glTexParameterf target pname param))
@@ -852,10 +900,10 @@
   (gl-uniform-matrix-4v location #f value))
 
 (define-method (gl-use-program (program <gl-program>))
-  (glUseProgram (object-id program)))
+  (glUseProgram (gl-object-id program)))
 
 (define-method (gl-validate-program (program <gl-program>))
-  (glValidateProgram (object-id program)))
+  (glValidateProgram (gl-object-id program)))
 
 (define-method (gl-vertex-attrib index v0)
   (glVertexAttrib1f index v0))

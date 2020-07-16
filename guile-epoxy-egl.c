@@ -23,7 +23,7 @@ SCM_DEFINE_PUBLIC(scm_epoxy_egl_version, "epoxy-egl-version", 1, 0, 0,
     (SCM dpy), "") {
   SCM_VALIDATE_POINTER(SCM_ARG1, dpy);
   void *c_dpy = SCM_POINTER_VALUE(dpy);
-  return scm_from_bool(epoxy_egl_version((EGLDisplay) c_dpy));
+  return scm_from_int(epoxy_egl_version((EGLDisplay) c_dpy));
 }
 #undef FUNC_NAME
 
