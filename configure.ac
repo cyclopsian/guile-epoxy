@@ -2,8 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 AC_INIT([guile-epoxy], [1.0], [jason@cycles.network])
-AM_INIT_AUTOMAKE([gnu -Wall -Werror foreign])
+AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIRS([m4])
+AC_CONFIG_SRCDIR([guile-epoxy.c])
+AC_USE_SYSTEM_EXTENSIONS
+AM_INIT_AUTOMAKE([gnu -Wall -Werror foreign])
 AM_SILENT_RULES([yes])
 
 GUILE_PKG([3.0])
@@ -27,6 +30,8 @@ AM_CONDITIONAL([EPOXY_HAS_EGL], [test "x$epoxy_has_egl" = "x1"])
 
 AC_PROG_CC
 AM_PROG_AR
+
+LT_PREREQ([2.2])
 LT_INIT([disable-static])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([env], [chmod +x env])
