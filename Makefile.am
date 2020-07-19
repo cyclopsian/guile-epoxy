@@ -54,6 +54,10 @@ $(GOBJECTS): %.go: %.scm $(guileextension_LTLIBRARIES)
 	./env $(GUILD) compile -L $(abs_top_srcdir) -L $(abs_top_builddir) \
 		$(GUILE_TARGET) $(GUILE_WARNINGS) -o "$@" "$<"
 
+TESTS = tests/egl-gles2.scm
+TEST_EXTENSIONS = .scm
+SCM_LOG_COMPILER = ./env $(GUILE) -s
+
 nobase_mod_DATA = $(SCMS) $(NOCOMP_SOURCES)
 nobase_nodist_obj_DATA = $(GOBJECTS)
 

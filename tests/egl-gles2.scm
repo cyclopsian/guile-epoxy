@@ -11,6 +11,8 @@
   #:use-module (srfi srfi-64)
   #:duplicates (merge-generics))
 
+(module-set! (resolve-module '(srfi srfi-64)) 'test-log-to-file #f)
+
 (define has-platform-surfaceless-mesa? #f)
 
 (test-begin "epoxy-has-egl-extension")
