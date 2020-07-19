@@ -152,7 +152,7 @@
     (else
       (scm-error
         'wrong-type-arg method
-        "Must be #f or an ~a ~a"
+        "Must be #f or an ~a: ~a"
         (list (class-name class) ptr-obj)
         (list ptr-obj)))))
 

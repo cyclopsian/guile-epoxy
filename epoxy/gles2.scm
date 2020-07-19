@@ -74,7 +74,7 @@
   #:re-export (epoxy-has-gl-extension epoxy-is-desktop-gl
                epoxy-gl-version epoxy-glsl-version
 
-               initialize delete
+               initialize
 
                GL_DEPTH_BUFFER_BIT GL_STENCIL_BUFFER_BIT GL_COLOR_BUFFER_BIT
                GL_FALSE GL_TRUE GL_POINTS GL_LINES GL_LINE_LOOP GL_LINE_STRIP
@@ -206,7 +206,7 @@
 (define-method (initialize (obj <gl-object>) args)
   (apply (λ (id)
            (unless (and (integer? id) (positive? id))
-             (scm-error 'wrong-type-arg "initialize"
+             (scm-error 'wrong-type-arg "gl-object-initialize"
                         "Not a positive integer: ~a" (list id) #f))
            (slot-set! obj 'id id))
          args))

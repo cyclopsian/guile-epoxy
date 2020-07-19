@@ -145,3 +145,5 @@ void main(void) {
 
   (egl-terminate disp))
 (test-end "egl-gles2")
+
+(exit (if (zero? (test-runner-fail-count (test-runner-get))) 0 1))
