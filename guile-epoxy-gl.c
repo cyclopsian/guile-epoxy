@@ -4,6 +4,10 @@
 #include <libguile.h>
 #include <epoxy/gl.h>
 
+SCM_API void scm_init_epoxy_gl_commands(void);
+SCM_API void scm_init_epoxy_gl_enums(void);
+SCM_API void scm_init_epoxy_gl(void);
+
 #define FUNC_NAME s_scm_epoxy_has_gl_extension
 SCM_DEFINE_PUBLIC(scm_epoxy_has_gl_extension, "epoxy-has-gl-extension", 1, 0, 0,
     (SCM extension), "") {
@@ -36,19 +40,8 @@ SCM_DEFINE_PUBLIC(scm_epoxy_glsl_version, "epoxy-glsl-version", 0, 0, 0,
 }
 #undef FUNC_NAME
 
-void init_gl_commands(void *data);
-void init_gl_enums(void *data);
-
-void init_gl_util(void *data) {
-  (void) data;
+void scm_init_epoxy_gl(void) {
 #ifndef SCM_MAGIC_SNARFER
 #include "guile-epoxy-gl.x"
 #endif
 }
-
-void scm_init_epoxy_gl(void) {
-  scm_c_define_module("epoxy gl commands", init_gl_commands, NULL);
-  scm_c_define_module("epoxy gl enums", init_gl_enums, NULL);
-  scm_c_define_module("epoxy gl util", init_gl_util, NULL);
-}
-

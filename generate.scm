@@ -302,7 +302,7 @@ static SCM scm_~a(~a) {
   (string-join (format-args (slot-ref cmd 'params)) ", ")
   (format-body cmd)))
       commands)
-    (format #t "\n\nvoid init_~a_enums(void *data) {\n  (void) data;"
+    (format #t "\n\nvoid scm_init_epoxy_~a_enums(void) {"
             namespace)
     (for-each
       (match-lambda
@@ -319,7 +319,7 @@ static SCM scm_~a(~a) {
                    (else "uint")))))
       enums)
     (newline)
-    (format #t "}\n\nvoid init_~a_commands(void *data) {\n  (void) data;"
+    (format #t "}\n\nvoid scm_init_epoxy_~a_commands(void) {"
             namespace)
     (define (print-cmd-def name params)
       (let ((len (length params)))

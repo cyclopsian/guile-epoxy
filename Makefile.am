@@ -36,9 +36,10 @@ $(DOT_X): %.x : %.c
 	$(GUILE_SNARF) $(libguile_epoxy_la_CFLAGS) $(CFLAGS) $< > $@ \
 		|| { rm $@; false; }
 
-SCMS = epoxy/gles2.scm
+SCMS = epoxy/common.scm \
+       epoxy/gles2.scm epoxy/gl/commands.scm epoxy/gl/enums.scm
 if EPOXY_HAS_EGL
-SCMS += epoxy/egl.scm
+SCMS += epoxy/egl.scm epoxy/egl/commands.scm epoxy/egl/enums.scm
 endif
 
 GOBJECTS = $(SCMS:.scm=.go)

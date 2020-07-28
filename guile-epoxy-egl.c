@@ -4,6 +4,10 @@
 #include <libguile.h>
 #include <epoxy/egl.h>
 
+SCM_API void scm_init_epoxy_egl_commands(void);
+SCM_API void scm_init_epoxy_egl_enums(void);
+SCM_API void scm_init_epoxy_egl(void);
+
 #define FUNC_NAME s_scm_epoxy_has_egl_extension
 SCM_DEFINE_PUBLIC(scm_epoxy_has_egl_extension,
     "epoxy-has-egl-extension", 2, 0, 0,
@@ -34,18 +38,8 @@ SCM_DEFINE_PUBLIC(scm_epoxy_has_egl, "epoxy-has-egl", 0, 0, 0,
 }
 #undef FUNC_NAME
 
-void init_egl_commands(void *data);
-void init_egl_enums(void *data);
-
-void init_egl_util(void *data) {
-  (void) data;
+void scm_init_epoxy_egl(void) {
 #ifndef SCM_MAGIC_SNARFER
 #include "guile-epoxy-egl.x"
 #endif
-}
-
-void scm_init_epoxy_egl(void) {
-  scm_c_define_module("epoxy egl commands", init_egl_commands, NULL);
-  scm_c_define_module("epoxy egl enums", init_egl_enums, NULL);
-  scm_c_define_module("epoxy egl util", init_egl_util, NULL);
 }

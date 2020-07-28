@@ -4,7 +4,7 @@
 #include <libguile.h>
 #include <epoxy/common.h>
 
-SCM_API void scm_init_epoxy(void);
+SCM_API void scm_init_epoxy_common(void);
 
 #define FUNC_NAME s_scm_epoxy_extension_in_string
 SCM_DEFINE_PUBLIC(scm_epoxy_extension_in_string,
@@ -23,22 +23,9 @@ SCM_DEFINE_PUBLIC(scm_epoxy_extension_in_string,
 }
 #undef FUNC_NAME
 
-void scm_init_epoxy_gl(void);
-#ifdef HAVE_EGL
-void scm_init_epoxy_egl(void);
-#endif
-
-void init_epoxy_util(void *data) {
-  (void) data;
+void scm_init_epoxy_common(void) {
 #ifndef SCM_MAGIC_SNARFER
 #include "guile-epoxy.x"
 #endif
 }
 
-void scm_init_epoxy(void) {
-  scm_init_epoxy_gl();
-#ifdef HAVE_EGL
-  scm_init_epoxy_egl();
-#endif
-  scm_c_define_module("epoxy util", init_epoxy_util, NULL);
-}
