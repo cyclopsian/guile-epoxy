@@ -58,10 +58,14 @@ $(GOBJECTS): %.go: %.scm $(guileextension_LTLIBRARIES)
 TESTS = tests/egl-gles2.scm
 TEST_EXTENSIONS = .scm
 SCM_LOG_COMPILER = ./env $(GUILE) -s
+check_SCRIPTS = $(TESTS:.scm=.go)
+
+$(check_SCRIPTS): %.go: %.scm
+	./env $(GUILD) compile $(GUILE_TARGET) $(GUILE_WARNINGS) -o "$@" "$<"
 
 nobase_mod_DATA = $(SCMS) $(NOCOMP_SOURCES)
-nobase_nodist_obj_DATA = $(GOBJECTS)
+nobase_nodist_obj_DATA = $(GOBJECTS) $(check_SCRIPTS)
 
-CLEANFILES = $(BUILT_SOURCES) $(GOBJECTS)
+CLEANFILES = $(BUILT_SOURCES) $(GOBJECTS) $(check_SCRIPTS)
 
-EXTRA_DIST = $(SCMS) generate.scm LICENSES .reuse registry
+EXTRA_DIST = $(SCMS) $(TESTS) generate.scm LICENSES .reuse registry

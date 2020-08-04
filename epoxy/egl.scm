@@ -219,9 +219,12 @@
 (define-method
   (egl-create-pixmap-surface (disp <egl-display>) (config <egl-config>) pixmap
                                    attrib-list)
-  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
+  (let* ((create (if (epoxy-has-egl-extension "EGL_EXT_platform_base")
+                     eglCreatePlatformPixmapSurfaceEXT
+                     eglCreatePlatformPixmapSurface))
+         (attrib-ptr (make-attrib-list-ptr attrib-list))
          (surface-ptr (pointer-address
-                        (eglCreatePlatformPixmapSurface
+                        (create
                           (foreign->pointer disp)
                           (foreign->pointer config)
                           (if (pointer? pixmap) pixmap (make-pointer pixmap))
@@ -246,9 +249,12 @@
 (define-method
   (egl-create-window-surface (disp <egl-display>) (config <egl-config>) window
                                    attrib-list)
-  (let* ((attrib-ptr (make-attrib-list-ptr attrib-list))
+  (let* ((create (if (epoxy-has-egl-extension "EGL_EXT_platform_base")
+                     eglCreatePlatformWindowSurfaceEXT
+                     eglCreatePlatformWindowSurface))
+         (attrib-ptr (make-attrib-list-ptr attrib-list))
          (surface-ptr (pointer-address
-                        (eglCreatePlatformWindowSurface
+                        (create
                           (foreign->pointer disp)
                           (foreign->pointer config)
                           (if (pointer? window) window (make-pointer window))
