@@ -14,7 +14,9 @@
   #:export (<egl-config> <egl-context> <egl-display>
             <egl-image>  <egl-surface> <egl-sync>
 
-            epoxy-has-egl-extension epoxy-egl-version epoxy-has-egl
+            epoxy-has-egl-extension epoxy-require-egl-extension
+            epoxy-egl-version epoxy-require-egl-version
+            epoxy-has-egl epoxy-require-egl
 
             egl-error egl-bind-api egl-bind-tex-image egl-choose-config
             egl-client-wait-sync egl-copy-buffers egl-create-context
@@ -55,11 +57,17 @@
 (define (foreign->nullable-pointer f)
   (if f (foreign->pointer f) %null-pointer))
 
+(define (try-convert-symbol value)
+  (if (symbol? value)
+      (variable-ref (module-variable (current-module) value))
+      value))
+
 (define (make-attrib-list-ptr attribs)
   (bytevector->pointer
     (any->s32vector
       (append
-        (map (λ (a) (case a ((#t) 1) ((#f) 0) (else a))) attribs)
+        (map (λ (a) (case (try-convert-symbol a)
+                          ((#t) 1) ((#f) 0) (else => identity))) attribs)
         (list EGL_NONE)))))
 
 (define egl-errors
@@ -93,10 +101,26 @@
 (define-method (epoxy-has-egl-extension extension)
   (epoxy-has-egl-extension %null-pointer extension))
 
+(define (epoxy-require-egl)
+  (unless (epoxy-has-egl)
+    (error "EGL not found")))
+
+(define (epoxy-require-egl-extension . args)
+  (epoxy-require-egl)
+  (unless (apply epoxy-has-egl-extension args)
+    (error "Required EGL extension not found" args)))
+
 (define epoxy-egl-version epoxy-egl-version)
 (define-generic epoxy-egl-version)
 (define-method (epoxy-egl-version (disp <egl-display>))
   (epoxy-egl-version (foreign->pointer disp)))
+
+(define (epoxy-require-egl-version disp version)
+  (epoxy-require-egl)
+  (let ((actual (epoxy-egl-version disp)))
+    (when (< actual version)
+      (error (format #f "EGL version is ~a, need at least ~a"
+                     actual version)))))
 
 (define (egl-bind-api api)
   (unless (eglBindAPI api)
@@ -300,7 +324,7 @@
   (let ((value-vec (make-s32vector 1)))
     (if (eglGetConfigAttrib
               (foreign->pointer disp) (foreign->pointer config)
-              attribute value-vec)
+              attribute (bytevector->pointer value-vec))
         (s32vector-ref value-vec 0)
         (egl-error "egl-get-config-attrib"))))
 
@@ -356,7 +380,7 @@
   (let ((value-vec (make-s32vector 1)))
     (if (eglGetSyncAttrib
               (foreign->pointer disp) (foreign->pointer sync)
-              attribute value-vec)
+              attribute (bytevector->pointer value-vec))
         (s32vector-ref value-vec 0)
         (egl-error "egl-get-sync-attrib"))))
 
@@ -390,7 +414,7 @@
   (let ((value-vec (make-s32vector 1)))
     (if (eglQueryContext
               (foreign->pointer disp) (foreign->pointer context)
-              attribute value-vec)
+              attribute (bytevector->pointer value-vec))
         (s32vector-ref value-vec 0)
         (egl-error "egl-query-context"))))
 
@@ -411,7 +435,7 @@
   (let ((value-vec (make-s32vector 1)))
     (if (eglQuerySurface
               (foreign->pointer disp) (foreign->pointer surface)
-              attribute value-vec)
+              attribute (bytevector->pointer value-vec))
         (s32vector-ref value-vec 0)
         (egl-error "egl-query-surface"))))
 

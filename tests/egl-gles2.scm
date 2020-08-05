@@ -12,31 +12,130 @@
   #:duplicates (merge-generics))
 
 (module-set! (resolve-module '(srfi srfi-64)) 'test-log-to-file #f)
+(test-runner-current (test-runner-create))
 
-(define has-platform-surfaceless-mesa? #f)
+(test-group "epoxy-has-egl"
+  (test-assert (epoxy-has-egl)))
 
-(test-begin "epoxy-has-egl-extension")
-(set! has-platform-surfaceless-mesa?
-  (epoxy-has-egl-extension "EGL_MESA_platform_surfaceless"))
-(test-end "epoxy-has-egl-extension")
+(test-group "epoxy-require-egl"
+  (test-assert (epoxy-require-egl)))
 
-(unless has-platform-surfaceless-mesa?
-  (format (current-error-port)
-"EGL_MESA_platform_surfaceless extension not supported!
-Can't continue with tests.\n")
-  (quit 1))
+(test-group "epoxy-has-egl-extension"
+  (test-assert (epoxy-has-egl-extension "EGL_MESA_platform_surfaceless")))
+
+(test-group "epoxy-require-egl-extension"
+  (test-assert (epoxy-require-egl-extension "EGL_MESA_platform_surfaceless")))
+
+(test-group "epoxy-require-egl-extension invalid extension"
+  (test-error (epoxy-require-egl-extension "INVALID_EXTENSION")))
+
+(epoxy-require-egl-extension "EGL_MESA_platform_surfaceless")
+
+(define config-attribs-desktop
+  '(EGL_SURFACE_TYPE      EGL_PBUFFER_BIT
+    EGL_RED_SIZE          8
+    EGL_GREEN_SIZE        8
+    EGL_BLUE_SIZE         8
+    EGL_ALPHA_SIZE        8
+    EGL_DEPTH_SIZE        0
+    EGL_CONFORMANT        EGL_OPENGL_BIT
+    EGL_RENDERABLE_TYPE   EGL_OPENGL_BIT
+    EGL_NATIVE_RENDERABLE EGL_TRUE))
 
 (define config-attribs
-  (list EGL_SURFACE_TYPE      EGL_WINDOW_BIT
+  (list EGL_SURFACE_TYPE      EGL_PBUFFER_BIT
         EGL_RED_SIZE          8
         EGL_GREEN_SIZE        8
         EGL_BLUE_SIZE         8
         EGL_ALPHA_SIZE        8
+        EGL_DEPTH_SIZE        0
+        EGL_CONFORMANT        EGL_OPENGL_ES2_BIT
         EGL_RENDERABLE_TYPE   EGL_OPENGL_ES2_BIT
         EGL_NATIVE_RENDERABLE EGL_TRUE))
 
 (define ctx-attribs
-  (list EGL_CONTEXT_CLIENT_VERSION 2))
+  (list EGL_CONTEXT_MAJOR_VERSION 2))
+
+(define ctx-attribs-desktop
+  (list EGL_CONTEXT_MAJOR_VERSION 2))
+
+(let ((disp (egl-get-platform-display EGL_PLATFORM_SURFACELESS_MESA)))
+  (egl-initialize disp)
+  (test-group "epoxy-egl-version"
+    (test-assert (> (epoxy-egl-version disp) 0)))
+
+  (test-group "epoxy-require-egl-version"
+    (test-assert (epoxy-require-egl-version disp 10)))
+
+  (test-group "epoxy-require-egl-version invalid"
+    (test-error (epoxy-require-egl-version disp 999)))
+
+  (let* ((config (egl-choose-config disp config-attribs-desktop 1))
+         (context (egl-create-context disp (car config) ctx-attribs-desktop)))
+    (egl-make-current disp #f #f context)
+    (egl-bind-api EGL_OPENGL_API)
+
+    (test-group "epoxy-has-gl-extension invalid extension"
+      (test-equal (epoxy-has-gl-extension "INVALID_EXTENSION") #f))
+
+    (test-group "epoxy-require-gl-extension invalid extension"
+      (test-error (epoxy-require-gl-extension "INVALID_EXTENSION")))
+
+    (test-group "epoxy-gl-version"
+      (test-assert (> (epoxy-gl-version) 0)))
+
+    (test-group "epoxy-require-gl-version"
+      (test-assert (epoxy-require-gl-version 10)))
+
+    (test-group "epoxy-require-gl-version invalid"
+      (test-error (epoxy-require-gl-version 999)))
+
+    (test-group "epoxy-glsl-version"
+      (test-assert (> (epoxy-glsl-version) 0)))
+
+    (test-group "epoxy-require-glsl-version"
+      (test-assert (epoxy-require-glsl-version 10)))
+
+    (test-group "epoxy-require-glsl-version invalid"
+      (test-error (epoxy-require-glsl-version 999)))
+
+    (egl-make-current disp #f #f #f)
+    (egl-destroy-context disp context))
+
+  (let* ((config (egl-choose-config disp config-attribs 1))
+         (context (egl-create-context disp (car config) ctx-attribs)))
+    (egl-make-current disp #f #f context)
+    (egl-bind-api EGL_OPENGL_ES_API)
+
+    (test-group "epoxy-has-gl-extension gles invalid extension"
+      (test-equal (epoxy-has-gl-extension "INVALID_EXTENSION") #f))
+
+    (test-group "epoxy-require-gl-extension gles invalid extension"
+      (test-error (epoxy-require-gl-extension "INVALID_EXTENSION")))
+
+    (test-group "epoxy-gl-version gles"
+      (test-assert (> (epoxy-gl-version) 0)))
+
+    (test-group "epoxy-require-gl-version gles"
+      (test-assert (epoxy-require-gl-version 10)))
+
+    (test-group "epoxy-require-gl-version gles invalid"
+      (test-error (epoxy-require-gl-version 999)))
+
+    (test-group "epoxy-glsl-version gles"
+      (test-assert (> (epoxy-glsl-version) 0)))
+
+    (test-group "epoxy-require-glsl-version gles"
+      (test-assert (epoxy-require-glsl-version 10)))
+
+    (test-group "epoxy-require-glsl-version gles invalid"
+      (test-error (epoxy-require-glsl-version 999)))
+
+    (egl-make-current disp #f #f #f)
+    (egl-destroy-context disp context))
+
+  (epoxy-require-egl-version disp 14)
+  (egl-terminate disp))
 
 (define width  64)
 (define height 8)

@@ -15,8 +15,10 @@
             <gl-buffer> <gl-framebuffer> <gl-program>
             <gl-renderbuffer> <gl-shader> <gl-texture>
 
-            epoxy-has-gl-extension epoxy-is-desktop-gl
-            epoxy-gl-version epoxy-glsl-version
+            epoxy-has-gl-extension epoxy-require-gl-extension
+            epoxy-is-desktop-gl epoxy-require-desktop-gl
+            epoxy-gl-version epoxy-require-gl-version
+            epoxy-glsl-version epoxy-require-glsl-version
 
             gl-create-buffer gl-bind-buffer gl-delete-buffer
             gl-create-framebuffer gl-bind-framebuffer gl-delete-framebuffer
@@ -179,6 +181,26 @@
 
 (eval-when (expand load eval)
   (load-extension "libguile-epoxy" "scm_init_epoxy_gl"))
+
+(define (epoxy-require-gl-extension extension)
+  (unless (apply epoxy-has-gl-extension extension)
+    (error "Required GL extension not found" extension)))
+
+(define (epoxy-require-desktop-gl)
+  (unless (epoxy-is-desktop-gl)
+    (error "Desktop GL not present")))
+
+(define (epoxy-require-gl-version version)
+  (let ((actual (epoxy-gl-version)))
+    (when (< actual version)
+      (error (format #f "GL version is ~a, need at least ~a"
+                     actual version)))))
+
+(define (epoxy-require-glsl-version version)
+  (let ((actual (epoxy-glsl-version)))
+    (when (< actual version)
+      (error (format #f "GLSL version is ~a, need at least ~a"
+                     actual version)))))
 
 (define gl-errors
   ((λ ()
